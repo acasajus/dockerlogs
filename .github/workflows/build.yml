@@ -1,0 +1,174 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 (static musl)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: dockerlogs
+            asset_name: dockerlogs-linux-x86_64
+
+          # Linux ARM64 (static musl)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            artifact_name: dockerlogs
+            asset_name: dockerlogs-linux-aarch64
+
+          # macOS x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: dockerlogs
+            asset_name: dockerlogs-macos-x86_64
+
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: dockerlogs
+            asset_name: dockerlogs-macos-aarch64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cross build --release --target ${{ matrix.target }}
+
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          fi
+
+      - name: Strip binary (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+      - name: Rename binary
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Create checksums
+        run: |
+          cd artifacts
+          for dir in */; do
+            cd "$dir"
+            for file in *; do
+              sha256sum "$file" > "$file.sha256"
+            done
+            cd ..
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/*/*
+          body: |
+            ## Docker Logs ${{ github.ref_name }}
+
+            Cross-platform Docker log viewer with TUI support.
+
+            ### Installation
+
+            Download the appropriate binary for your platform:
+
+            - **Linux x86_64**: `dockerlogs-linux-x86_64`
+            - **Linux ARM64**: `dockerlogs-linux-aarch64`
+            - **macOS x86_64 (Intel)**: `dockerlogs-macos-x86_64`
+            - **macOS ARM64 (Apple Silicon)**: `dockerlogs-macos-aarch64`
+
+            Make it executable:
+            ```bash
+            chmod +x dockerlogs-*
+            sudo mv dockerlogs-* /usr/local/bin/dockerlogs
+            ```
+
+            ### Usage
+
+            ```bash
+            # View logs
+            dockerlogs
+
+            # Follow logs
+            dockerlogs -f
+
+            # TUI mode
+            dockerlogs tui
+
+            # Filter containers
+            dockerlogs -c "^myapp"
+            ```
+
+            ### Checksums
+
+            SHA256 checksums are provided for verification.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

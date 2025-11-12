@@ -558,7 +558,7 @@ async fn get_container_info(docker_url: &str, container_id: &str) -> String {
                     for (name, network) in networks {
                         output.push_str(&format!("  {}: ", name));
                         if let Some(ip) = &network.ip_address {
-                            output.push_str(&format!("{}", ip));
+                            output.push_str(&ip.to_string());
                         }
                         output.push('\n');
                     }
@@ -587,8 +587,8 @@ async fn log_container(
 
     let name = match &info.name {
         Some(n) => {
-            if n.starts_with('/') {
-                n[1..].to_owned()
+            if let Some(stripped) = n.strip_prefix('/') {
+                stripped.to_owned()
             } else {
                 n.clone()
             }

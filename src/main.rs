@@ -70,8 +70,8 @@ async fn start_logging_container(
 
     let name = match &info.name {
         Some(n) => {
-            if n.starts_with('/') {
-                n[1..].to_owned()
+            if let Some(stripped) = n.strip_prefix('/') {
+                stripped.to_owned()
             } else {
                 n.clone()
             }

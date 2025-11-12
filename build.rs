@@ -17,7 +17,7 @@ fn main() {
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(String::new);
+        .unwrap_or_default();
 
     // Get git branch
     let git_branch = Command::new("git")

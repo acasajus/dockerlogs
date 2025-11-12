@@ -1,9 +1,11 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use colored::*;
 use futures::StreamExt;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+mod tui;
 
 async fn get_docker(url: &str) -> docker_api::Docker {
     docker_api::Docker::new(url).unwrap()
@@ -12,24 +14,38 @@ async fn get_docker(url: &str) -> docker_api::Docker {
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Name of the person to greet
-    #[clap(default_value_t = String::from("unix:///var/run/docker.sock"), short, long, value_parser)]
+    /// Docker socket URL
+    #[clap(default_value_t = String::from("unix:///var/run/docker.sock"), short, long, value_parser, global = true)]
     url: String,
-    /// Follow docker logs
+    /// Containers filter regex
+    #[clap(default_value = ".*", short, long, value_parser, global = true)]
+    container_regex: String,
+
+    /// Follow docker logs (only for default logs mode)
     #[clap(default_value_t = false, short, long, value_parser)]
     follow: bool,
-    /// Show last n lines
-    #[clap(default_value_t = 20, short, long, value_parser)]
+    /// Show last n lines (only for default logs mode)
+    #[clap(default_value_t = 20, short = 'l', long, value_parser)]
     last_n_lines: usize,
-    /// Hide stdout
+    /// Hide stdout (only for default logs mode)
     #[clap(default_value_t = false, short = 'o', long, value_parser)]
     no_stdout: bool,
-    /// Hide stderr
+    /// Hide stderr (only for default logs mode)
     #[clap(default_value_t = false, short = 'e', long, value_parser)]
     no_stderr: bool,
-    /// Containers filter regex
-    #[clap(default_value = ".*", short, long, value_parser)]
-    container_regex: String,
+
+    #[clap(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Interactive TUI mode
+    Tui {
+        /// Show last n lines
+        #[clap(default_value_t = 100, short, long, value_parser)]
+        last_n_lines: usize,
+    },
 }
 
 async fn start_logging_container(
@@ -118,18 +134,47 @@ async fn start_logging_container(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Args::parse();
 
-    let docker = get_docker(&cli.url).await;
-    let container_regex = regex::Regex::new(&cli.container_regex)?;
+    match cli.command {
+        Some(Command::Tui { last_n_lines }) => {
+            tui::run_tui(&cli.url, &cli.container_regex, last_n_lines).await?;
+        }
+        None => {
+            // Default behavior: logs mode
+            run_logs_mode(
+                &cli.url,
+                &cli.container_regex,
+                cli.follow,
+                cli.last_n_lines,
+                cli.no_stdout,
+                cli.no_stderr,
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn run_logs_mode(
+    url: &str,
+    container_regex_str: &str,
+    follow: bool,
+    last_n_lines: usize,
+    no_stdout: bool,
+    no_stderr: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let docker = get_docker(url).await;
+    let container_regex = regex::Regex::new(container_regex_str)?;
 
     // Shared state for tracking watched containers
     let watched_containers: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
     let color_counter = Arc::new(Mutex::new(0usize));
 
     let log_opts = docker_api::opts::LogsOpts::builder()
-        .follow(cli.follow)
-        .n_lines(cli.last_n_lines)
-        .stdout(!cli.no_stdout)
-        .stderr(!cli.no_stderr)
+        .follow(follow)
+        .n_lines(last_n_lines)
+        .stdout(!no_stdout)
+        .stderr(!no_stderr)
         .timestamps(false)
         .build();
 
@@ -155,13 +200,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         watched.insert(container_id.clone());
         drop(watched);
 
-        let docker_url = cli.url.clone();
+        let docker_url = url.to_string();
         let regex = container_regex.clone();
         let opts = log_opts.clone();
         let watched = watched_containers.clone();
         let counter = color_counter.clone();
 
-        let follow = cli.follow;
+        let is_follow = follow;
         let task = tokio::spawn(async move {
             let mut color_idx = counter.lock().await;
             let idx = *color_idx;
@@ -175,7 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 opts,
                 idx,
                 watched,
-                follow,
+                is_follow,
             )
             .await;
         });
@@ -183,7 +228,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // If not following, wait for all tasks to complete and exit
-    if !cli.follow {
+    if !follow {
         for task in tasks {
             let _ = task.await;
         }
@@ -191,7 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // If following, monitor Docker events for new containers
-    let event_docker = get_docker(&cli.url).await;
+    let event_docker = get_docker(url).await;
     let event_opts = docker_api::opts::EventsOpts::builder().build();
 
     let mut events = event_docker.events(&event_opts);
@@ -215,7 +260,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     watched.insert(container_id.clone());
                     drop(watched);
 
-                    let docker_url = cli.url.clone();
+                    let docker_url = url.to_string();
                     let regex = container_regex.clone();
                     let opts = log_opts.clone();
                     let watched = watched_containers.clone();

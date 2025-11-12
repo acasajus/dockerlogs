@@ -39,6 +39,7 @@ async fn start_logging_container(
     log_opts: docker_api::opts::LogsOpts,
     color_index: usize,
     watched_containers: Arc<Mutex<HashSet<String>>>,
+    follow: bool,
 ) {
     let docker = get_docker(&docker_url).await;
     let container = docker_api::container::Container::new(docker, container_id.clone());
@@ -107,7 +108,9 @@ async fn start_logging_container(
     }
 
     // Container stopped or died, remove from watched list
-    println!(">>> {} Container {} stopped", "✗".bright_red(), name.bright_cyan());
+    if follow {
+        println!(">>> {} Container {} stopped", "✗".bright_red(), name.bright_cyan());
+    }
     watched_containers.lock().await.remove(&container_id);
 }
 
@@ -158,6 +161,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let watched = watched_containers.clone();
         let counter = color_counter.clone();
 
+        let follow = cli.follow;
         let task = tokio::spawn(async move {
             let mut color_idx = counter.lock().await;
             let idx = *color_idx;
@@ -171,6 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 opts,
                 idx,
                 watched,
+                follow,
             )
             .await;
         });
@@ -229,6 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             opts,
                             idx,
                             watched,
+                            true, // Always true in event loop (follow mode)
                         )
                         .await;
                     });

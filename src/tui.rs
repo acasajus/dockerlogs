@@ -313,28 +313,55 @@ fn ui(f: &mut Frame, app: &mut AppState) {
     // "All" selector
     let all_selected = app.containers.iter().all(|c| c.selected);
     let checkbox = if all_selected { "◉" } else { "○" };
-    let checkbox_color = if all_selected { Color::Cyan } else { Color::DarkGray };
+    let checkbox_color = if all_selected {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    };
 
     let select_all_line = if app.select_all_focused {
         Line::from(vec![
-            Span::styled("▶ ", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("{} ", checkbox), Style::default().fg(Color::Black).bg(Color::Magenta)),
-            Span::styled("ALL", Style::default().fg(Color::Black).bg(Color::Magenta).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "▶ ",
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{} ", checkbox),
+                Style::default().fg(Color::Black).bg(Color::Magenta),
+            ),
+            Span::styled(
+                "ALL",
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ])
     } else {
         Line::from(vec![
             Span::styled("  ", Style::default()),
-            Span::styled(format!("{} ", checkbox), Style::default().fg(checkbox_color)),
-            Span::styled("ALL", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("{} ", checkbox),
+                Style::default().fg(checkbox_color),
+            ),
+            Span::styled(
+                "ALL",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ])
     };
 
-    let select_all_widget = Paragraph::new(select_all_line)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        );
+    let select_all_widget = Paragraph::new(select_all_line).block(
+        Block::default().borders(Borders::ALL).border_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+    );
     f.render_widget(select_all_widget, left_chunks[0]);
 
     // Container list
@@ -344,7 +371,9 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         .map(|c| {
             let checkbox = if c.selected { "◉" } else { "○" };
             let checkbox_style = if c.selected {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -353,9 +382,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                 Span::styled(format!("{} ", checkbox), checkbox_style),
                 Span::styled(
                     &c.name,
-                    Style::default()
-                        .fg(color)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
                 ),
             ]);
             ListItem::new(line)
@@ -366,9 +393,17 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                .border_style(
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .title("▶ CONTAINERS")
-                .title_style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+                .title_style(
+                    Style::default()
+                        .fg(Color::Magenta)
+                        .add_modifier(Modifier::BOLD),
+                ),
         )
         .highlight_style(
             Style::default()
@@ -387,9 +422,17 @@ fn ui(f: &mut Frame, app: &mut AppState) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                    .border_style(
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    )
                     .title("▶ CONTAINER INFO")
-                    .title_style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
+                    .title_style(
+                        Style::default()
+                            .fg(Color::Magenta)
+                            .add_modifier(Modifier::BOLD),
+                    ),
             )
             .wrap(Wrap { trim: false });
         f.render_widget(info_paragraph, chunks[1]);
@@ -411,9 +454,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                             Line::from(vec![
                                 Span::styled(
                                     container_name,
-                                    Style::default()
-                                        .fg(color)
-                                        .add_modifier(Modifier::BOLD),
+                                    Style::default().fg(color).add_modifier(Modifier::BOLD),
                                 ),
                                 Span::raw(rest),
                             ])
@@ -439,9 +480,17 @@ fn ui(f: &mut Frame, app: &mut AppState) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+                    .border_style(
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    )
                     .title("▶ LOGS")
-                    .title_style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
+                    .title_style(
+                        Style::default()
+                            .fg(Color::Magenta)
+                            .add_modifier(Modifier::BOLD),
+                    ),
             )
             .wrap(Wrap { trim: false });
 
@@ -456,16 +505,22 @@ fn ui(f: &mut Frame, app: &mut AppState) {
     };
 
     let help_spans = vec![
-        Span::styled("◆ ", Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "◆ ",
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::styled(help_text, Style::default().fg(Color::Cyan)),
     ];
 
-    let help_widget = Paragraph::new(Line::from(help_spans))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
-        );
+    let help_widget = Paragraph::new(Line::from(help_spans)).block(
+        Block::default().borders(Borders::ALL).border_style(
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        ),
+    );
     f.render_widget(help_widget, main_chunks[1]);
 }
 
@@ -652,86 +707,88 @@ pub async fn run_tui(
 
     // Main UI loop
     let docker_url_clone = url.to_string();
-    tokio::task::spawn_blocking(move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        loop {
-            // Render UI
-            {
-                let mut app = tokio::runtime::Handle::current()
-                    .block_on(app_state.lock());
-                terminal.draw(|f| ui(f, &mut app))?;
-            }
+    tokio::task::spawn_blocking(
+        move || -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            loop {
+                // Render UI
+                {
+                    let mut app = tokio::runtime::Handle::current().block_on(app_state.lock());
+                    terminal.draw(|f| ui(f, &mut app))?;
+                }
 
-            // Handle input
-            if event::poll(std::time::Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => break,
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            let mut app = tokio::runtime::Handle::current()
-                                .block_on(app_state.lock());
-                            app.next();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            let mut app = tokio::runtime::Handle::current()
-                                .block_on(app_state.lock());
-                            app.previous();
-                        }
-                        KeyCode::Char(' ') | KeyCode::Enter => {
-                            let mut app = tokio::runtime::Handle::current()
-                                .block_on(app_state.lock());
-                            app.toggle_selected();
-                        }
-                        KeyCode::Char('a') => {
-                            let mut app = tokio::runtime::Handle::current()
-                                .block_on(app_state.lock());
-                            app.select_all();
-                        }
-                        KeyCode::Char('n') => {
-                            let mut app = tokio::runtime::Handle::current()
-                                .block_on(app_state.lock());
-                            app.deselect_all();
-                        }
-                        KeyCode::Char('i') => {
-                            let mut app = tokio::runtime::Handle::current()
-                                .block_on(app_state.lock());
+                // Handle input
+                if event::poll(std::time::Duration::from_millis(100))? {
+                    if let Event::Key(key) = event::read()? {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => break,
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                let mut app =
+                                    tokio::runtime::Handle::current().block_on(app_state.lock());
+                                app.next();
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                let mut app =
+                                    tokio::runtime::Handle::current().block_on(app_state.lock());
+                                app.previous();
+                            }
+                            KeyCode::Char(' ') | KeyCode::Enter => {
+                                let mut app =
+                                    tokio::runtime::Handle::current().block_on(app_state.lock());
+                                app.toggle_selected();
+                            }
+                            KeyCode::Char('a') => {
+                                let mut app =
+                                    tokio::runtime::Handle::current().block_on(app_state.lock());
+                                app.select_all();
+                            }
+                            KeyCode::Char('n') => {
+                                let mut app =
+                                    tokio::runtime::Handle::current().block_on(app_state.lock());
+                                app.deselect_all();
+                            }
+                            KeyCode::Char('i') => {
+                                let mut app =
+                                    tokio::runtime::Handle::current().block_on(app_state.lock());
 
-                            if app.show_info {
-                                // Close info panel
-                                app.show_info = false;
-                            } else if let Some(selected_idx) = app.list_state.selected() {
-                                // Show info for selected container
-                                if selected_idx < app.containers.len() {
-                                    let container_id = app.containers[selected_idx].id.clone();
-                                    let docker_url = docker_url_clone.clone();
-                                    drop(app); // Release lock before async operation
+                                if app.show_info {
+                                    // Close info panel
+                                    app.show_info = false;
+                                } else if let Some(selected_idx) = app.list_state.selected() {
+                                    // Show info for selected container
+                                    if selected_idx < app.containers.len() {
+                                        let container_id = app.containers[selected_idx].id.clone();
+                                        let docker_url = docker_url_clone.clone();
+                                        drop(app); // Release lock before async operation
 
-                                    let info = tokio::runtime::Handle::current()
-                                        .block_on(get_container_info(&docker_url, &container_id));
+                                        let info = tokio::runtime::Handle::current().block_on(
+                                            get_container_info(&docker_url, &container_id),
+                                        );
 
-                                    let mut app = tokio::runtime::Handle::current()
-                                        .block_on(app_state.lock());
-                                    app.info_text = info;
-                                    app.show_info = true;
+                                        let mut app = tokio::runtime::Handle::current()
+                                            .block_on(app_state.lock());
+                                        app.info_text = info;
+                                        app.show_info = true;
+                                    }
                                 }
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
             }
-        }
 
-        // Restore terminal
-        disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
-        terminal.show_cursor()?;
+            // Restore terminal
+            disable_raw_mode()?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
+            terminal.show_cursor()?;
 
-        Ok(())
-    })
+            Ok(())
+        },
+    )
     .await
     .map_err(|e| format!("Task join error: {}", e))?
     .map_err(|e| format!("{}", e))?;

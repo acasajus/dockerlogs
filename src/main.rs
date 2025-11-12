@@ -86,7 +86,11 @@ async fn start_logging_container(
         return;
     }
 
-    println!(">>> {} Started watching container {}", "✓".bright_green(), name.bright_cyan());
+    println!(
+        ">>> {} Started watching container {}",
+        "✓".bright_green(),
+        name.bright_cyan()
+    );
 
     let mut stream = container.logs(&log_opts);
     while let Some(data) = stream.next().await {
@@ -125,7 +129,11 @@ async fn start_logging_container(
 
     // Container stopped or died, remove from watched list
     if follow {
-        println!(">>> {} Container {} stopped", "✗".bright_red(), name.bright_cyan());
+        println!(
+            ">>> {} Container {} stopped",
+            "✗".bright_red(),
+            name.bright_cyan()
+        );
     }
     watched_containers.lock().await.remove(&container_id);
 }
@@ -179,10 +187,7 @@ async fn run_logs_mode(
         .build();
 
     // Start logging existing containers
-    let containers = docker
-        .containers()
-        .list(&Default::default())
-        .await?;
+    let containers = docker.containers().list(&Default::default()).await?;
 
     let mut tasks = Vec::new();
 
@@ -246,7 +251,8 @@ async fn run_logs_mode(
             Ok(event) => {
                 // Check if it's a container start event
                 if event.type_.as_deref() == Some("container")
-                    && event.action.as_deref() == Some("start") {
+                    && event.action.as_deref() == Some("start")
+                {
                     let container_id = match event.actor.and_then(|a| a.id) {
                         Some(id) => id,
                         None => continue,

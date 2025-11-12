@@ -1,0 +1,52 @@
+name: Update Version on Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to set (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  update-version:
+    name: Update Cargo Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Update Cargo.toml version
+        run: |
+          VERSION="${{ inputs.version }}"
+          # Update version in Cargo.toml
+          sed -i "s/^version = .*/version = \"${VERSION}\"/" Cargo.toml
+
+          # Verify the change
+          echo "Updated Cargo.toml:"
+          grep "^version" Cargo.toml
+
+      - name: Update Cargo.lock
+        run: |
+          cargo check
+
+      - name: Commit version update
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add Cargo.toml Cargo.lock
+          git commit -m "chore: bump version to ${{ inputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"

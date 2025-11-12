@@ -492,9 +492,18 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                             .add_modifier(Modifier::BOLD),
                     ),
             )
-            .wrap(Wrap { trim: false });
+            .wrap(Wrap { trim: false })
+            .alignment(Alignment::Left);
 
-        f.render_widget(paragraph, chunks[1]);
+        // Calculate scroll to show latest logs at bottom
+        let block_height = chunks[1].height.saturating_sub(2); // Account for borders
+        let scroll_offset = if log_text.len() > block_height as usize {
+            (log_text.len() - block_height as usize) as u16
+        } else {
+            0
+        };
+
+        f.render_widget(paragraph.scroll((scroll_offset, 0)), chunks[1]);
     }
 
     // Help line at bottom

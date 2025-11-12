@@ -56,6 +56,8 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    needs: [check]
+    if: always() && (needs.check.result == 'success' || needs.check.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -87,6 +89,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for git describe to work
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

@@ -11,8 +11,10 @@ async fn get_docker(url: &str) -> docker_api::Docker {
     docker_api::Docker::new(url).unwrap()
 }
 
+const VERSION: &str = env!("BUILD_VERSION");
+
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version = VERSION, about, long_about = None)]
 struct Args {
     /// Docker socket URL
     #[clap(default_value_t = String::from("unix:///var/run/docker.sock"), short, long, value_parser, global = true)]

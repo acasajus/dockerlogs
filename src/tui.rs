@@ -6,7 +6,7 @@ use crossterm::{
 use futures::StreamExt;
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
@@ -434,7 +434,8 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                             .add_modifier(Modifier::BOLD),
                     ),
             )
-            .wrap(Wrap { trim: false });
+            .wrap(Wrap { trim: false })
+            .alignment(Alignment::Left);
         f.render_widget(info_paragraph, chunks[1]);
     } else {
         let selected_count = app.selected_count();
@@ -476,6 +477,15 @@ fn ui(f: &mut Frame, app: &mut AppState) {
             })
             .collect();
 
+        // Calculate scroll to show latest logs at bottom
+        let block_height = chunks[1].height.saturating_sub(2); // Account for borders
+        let log_count = log_text.len();
+        let scroll_offset = if log_count > block_height as usize {
+            (log_count - block_height as usize) as u16
+        } else {
+            0
+        };
+
         let paragraph = Paragraph::new(log_text)
             .block(
                 Block::default()
@@ -493,17 +503,10 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     ),
             )
             .wrap(Wrap { trim: false })
-            .alignment(Alignment::Left);
+            .alignment(Alignment::Left)
+            .scroll((scroll_offset, 0));
 
-        // Calculate scroll to show latest logs at bottom
-        let block_height = chunks[1].height.saturating_sub(2); // Account for borders
-        let scroll_offset = if log_text.len() > block_height as usize {
-            (log_text.len() - block_height as usize) as u16
-        } else {
-            0
-        };
-
-        f.render_widget(paragraph.scroll((scroll_offset, 0)), chunks[1]);
+        f.render_widget(paragraph, chunks[1]);
     }
 
     // Help line at bottom

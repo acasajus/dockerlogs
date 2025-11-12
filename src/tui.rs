@@ -12,6 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame, Terminal,
 };
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::sync::Arc;
@@ -385,8 +386,8 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text (right pane width minus borders)
-        let available_width = chunks[1].width.saturating_sub(2) as usize;
+        // Calculate available width for text (right pane width minus borders and safety margin)
+        let available_width = chunks[1].width.saturating_sub(3) as usize; // Extra margin for safety
 
         let log_text: Vec<Line> = app
             .logs
@@ -417,7 +418,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     }
                 };
 
-                // Manually wrap text to fit within available width
+                // Manually wrap text to fit within available width using proper unicode width
                 let (container_name, color, rest) = full_line;
                 let mut wrapped_lines = Vec::new();
 
@@ -426,8 +427,8 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                 }
 
                 if let (Some(name), Some(c)) = (container_name, color) {
-                    let prefix_len = name.len();
-                    let remaining_width = available_width.saturating_sub(prefix_len);
+                    let prefix_width = name.width();
+                    let remaining_width = available_width.saturating_sub(prefix_width);
 
                     if remaining_width == 0 {
                         wrapped_lines.push(Line::from(vec![
@@ -436,12 +437,17 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                         return wrapped_lines;
                     }
 
-                    // First line with container name
-                    let first_line_text = if rest.len() <= remaining_width {
-                        rest.clone()
-                    } else {
-                        rest.chars().take(remaining_width).collect::<String>()
-                    };
+                    // First line with container name - fit text by display width
+                    let mut first_line_text = String::new();
+                    let mut current_width = 0;
+                    for ch in rest.chars() {
+                        let ch_width = ch.width().unwrap_or(0);
+                        if current_width + ch_width > remaining_width {
+                            break;
+                        }
+                        first_line_text.push(ch);
+                        current_width += ch_width;
+                    }
                     let first_line_len = first_line_text.len();
 
                     wrapped_lines.push(Line::from(vec![
@@ -452,19 +458,55 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     // Additional lines if text continues
                     let mut remaining = &rest[first_line_len..];
                     while !remaining.is_empty() {
-                        let chunk: String = remaining.chars().take(available_width).collect();
-                        let chunk_len = chunk.len();
+                        let mut chunk = String::new();
+                        let mut current_width = 0;
+                        let mut chars_consumed = 0;
+
+                        for ch in remaining.chars() {
+                            let ch_width = ch.width().unwrap_or(0);
+                            if current_width + ch_width > available_width {
+                                break;
+                            }
+                            chunk.push(ch);
+                            current_width += ch_width;
+                            chars_consumed += ch.len_utf8();
+                        }
+
+                        if chunk.is_empty() && !remaining.is_empty() {
+                            // Handle case where single char is too wide - skip it
+                            let first_char = remaining.chars().next().unwrap();
+                            chars_consumed = first_char.len_utf8();
+                        }
+
                         wrapped_lines.push(Line::from(chunk));
-                        remaining = &remaining[chunk_len..];
+                        remaining = &remaining[chars_consumed..];
                     }
                 } else {
-                    // No container name, just wrap the text
+                    // No container name, just wrap the text by display width
                     let mut remaining = rest.as_str();
                     while !remaining.is_empty() {
-                        let chunk: String = remaining.chars().take(available_width).collect();
-                        let chunk_len = chunk.len();
+                        let mut chunk = String::new();
+                        let mut current_width = 0;
+                        let mut chars_consumed = 0;
+
+                        for ch in remaining.chars() {
+                            let ch_width = ch.width().unwrap_or(0);
+                            if current_width + ch_width > available_width {
+                                break;
+                            }
+                            chunk.push(ch);
+                            current_width += ch_width;
+                            chars_consumed += ch.len_utf8();
+                        }
+
+                        if chunk.is_empty() && !remaining.is_empty() {
+                            // Handle case where single char is too wide - skip it
+                            let first_char = remaining.chars().next().unwrap();
+                            chars_consumed = first_char.len_utf8();
+                        }
+
                         wrapped_lines.push(Line::from(chunk));
-                        remaining = &remaining[chunk_len..];
+                        remaining = &remaining[chars_consumed..];
                     }
                 }
 
@@ -497,7 +539,6 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                             .add_modifier(Modifier::BOLD),
                     ),
             )
-            .wrap(Wrap { trim: false })
             .alignment(Alignment::Left)
             .scroll((scroll_offset, 0));
 

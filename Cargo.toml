@@ -14,3 +14,4 @@ futures = "0.3.21"
 ratatui = "0.29"
 regex = "1.6.0"
 tokio = { version = "1", features = ["macros", "io-util", "rt-multi-thread", "sync"] }
+unicode-width = "0.2"

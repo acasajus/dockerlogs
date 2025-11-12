@@ -385,39 +385,90 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
+        // Calculate available width for text (right pane width minus borders)
+        let available_width = chunks[1].width.saturating_sub(2) as usize;
+
         let log_text: Vec<Line> = app
             .logs
             .iter()
-            .map(|line| {
-                if show_container_names {
+            .flat_map(|line| {
+                // First, build the full line
+                let full_line = if show_container_names {
                     // Parse log line format: "container_name descriptor: log_text"
                     if let Some(first_space_idx) = line.find(' ') {
                         let container_name = &line[..first_space_idx];
                         let rest = &line[first_space_idx..];
 
                         if let Some(color) = app.get_container_color(container_name) {
-                            Line::from(vec![
-                                Span::styled(
-                                    container_name,
-                                    Style::default().fg(color).add_modifier(Modifier::BOLD),
-                                ),
-                                Span::raw(rest),
-                            ])
+                            (Some(container_name.to_string()), Some(color), rest.to_string())
                         } else {
-                            Line::from(line.as_str())
+                            (None, None, line.clone())
                         }
                     } else {
-                        Line::from(line.as_str())
+                        (None, None, line.clone())
                     }
                 } else {
                     // Only one container selected, skip container name
                     // Format: "container_name descriptor: log_text" -> "descriptor: log_text"
                     if let Some(first_space_idx) = line.find(' ') {
-                        Line::from(&line[first_space_idx + 1..])
+                        (None, None, line[first_space_idx + 1..].to_string())
                     } else {
-                        Line::from(line.as_str())
+                        (None, None, line.clone())
+                    }
+                };
+
+                // Manually wrap text to fit within available width
+                let (container_name, color, rest) = full_line;
+                let mut wrapped_lines = Vec::new();
+
+                if available_width == 0 {
+                    return wrapped_lines;
+                }
+
+                if let (Some(name), Some(c)) = (container_name, color) {
+                    let prefix_len = name.len();
+                    let remaining_width = available_width.saturating_sub(prefix_len);
+
+                    if remaining_width == 0 {
+                        wrapped_lines.push(Line::from(vec![
+                            Span::styled(name, Style::default().fg(c).add_modifier(Modifier::BOLD)),
+                        ]));
+                        return wrapped_lines;
+                    }
+
+                    // First line with container name
+                    let first_line_text = if rest.len() <= remaining_width {
+                        rest.clone()
+                    } else {
+                        rest.chars().take(remaining_width).collect::<String>()
+                    };
+                    let first_line_len = first_line_text.len();
+
+                    wrapped_lines.push(Line::from(vec![
+                        Span::styled(name, Style::default().fg(c).add_modifier(Modifier::BOLD)),
+                        Span::raw(first_line_text),
+                    ]));
+
+                    // Additional lines if text continues
+                    let mut remaining = &rest[first_line_len..];
+                    while !remaining.is_empty() {
+                        let chunk: String = remaining.chars().take(available_width).collect();
+                        let chunk_len = chunk.len();
+                        wrapped_lines.push(Line::from(chunk));
+                        remaining = &remaining[chunk_len..];
+                    }
+                } else {
+                    // No container name, just wrap the text
+                    let mut remaining = rest.as_str();
+                    while !remaining.is_empty() {
+                        let chunk: String = remaining.chars().take(available_width).collect();
+                        let chunk_len = chunk.len();
+                        wrapped_lines.push(Line::from(chunk));
+                        remaining = &remaining[chunk_len..];
                     }
                 }
+
+                wrapped_lines
             })
             .collect();
 

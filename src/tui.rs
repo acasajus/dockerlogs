@@ -288,7 +288,7 @@ impl AppState {
 }
 
 fn ui(f: &mut Frame, app: &mut AppState) {
-    let size = f.size();
+    let size = f.area();
 
     // Calculate left pane width based on longest container name
     let left_width = app.max_container_name_width().min(size.width / 3);
@@ -301,7 +301,11 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(left_width), Constraint::Min(0)])
+        .constraints([
+            Constraint::Length(left_width),
+            Constraint::Min(1), // Ensure right pane has space
+        ])
+        .margin(0)
         .split(main_chunks[0]);
 
     // Split left pane into "All" and container list
@@ -355,67 +359,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         ])
     };
 
-    let select_all_widget = Paragraph::new(select_all_line).block(
-        Block::default().borders(Borders::ALL).border_style(
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-    );
-    f.render_widget(select_all_widget, left_chunks[0]);
-
-    // Container list
-    let items: Vec<ListItem> = app
-        .containers
-        .iter()
-        .map(|c| {
-            let checkbox = if c.selected { "◉" } else { "○" };
-            let checkbox_style = if c.selected {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::DarkGray)
-            };
-            let color = get_color(c.color_index);
-            let line = Line::from(vec![
-                Span::styled(format!("{} ", checkbox), checkbox_style),
-                Span::styled(
-                    &c.name,
-                    Style::default().fg(color).add_modifier(Modifier::BOLD),
-                ),
-            ]);
-            ListItem::new(line)
-        })
-        .collect();
-
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .title("▶ CONTAINERS")
-                .title_style(
-                    Style::default()
-                        .fg(Color::Magenta)
-                        .add_modifier(Modifier::BOLD),
-                ),
-        )
-        .highlight_style(
-            Style::default()
-                .bg(Color::Magenta)
-                .fg(Color::Black)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-    f.render_stateful_widget(list, left_chunks[1], &mut app.list_state);
-
-    // Right pane: logs or info
+    // Right pane: logs or info (render FIRST to prevent overflow)
     if app.show_info {
         let info_paragraph = Paragraph::new(app.info_text.as_str())
             .style(Style::default().fg(Color::Cyan))
@@ -508,6 +452,67 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
         f.render_widget(paragraph, chunks[1]);
     }
+
+    // Left pane: render AFTER right pane to ensure it's on top
+    let select_all_widget = Paragraph::new(select_all_line).block(
+        Block::default().borders(Borders::ALL).border_style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+    );
+    f.render_widget(select_all_widget, left_chunks[0]);
+
+    // Container list
+    let items: Vec<ListItem> = app
+        .containers
+        .iter()
+        .map(|c| {
+            let checkbox = if c.selected { "◉" } else { "○" };
+            let checkbox_style = if c.selected {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            let color = get_color(c.color_index);
+            let line = Line::from(vec![
+                Span::styled(format!("{} ", checkbox), checkbox_style),
+                Span::styled(
+                    &c.name,
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
+                ),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .title("▶ CONTAINERS")
+                .title_style(
+                    Style::default()
+                        .fg(Color::Magenta)
+                        .add_modifier(Modifier::BOLD),
+                ),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::Magenta)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    f.render_stateful_widget(list, left_chunks[1], &mut app.list_state);
 
     // Help line at bottom
     let help_text = if app.show_info {

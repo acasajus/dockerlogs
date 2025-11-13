@@ -386,9 +386,13 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text (right pane width minus borders and large safety margin)
-        // Need extra margin to account for styling overhead and ensure no overflow
-        let available_width = chunks[1].width.saturating_sub(5) as usize;
+        // Calculate available width for text with VERY conservative margin
+        // Account for borders (2) + styling overhead + safety buffer
+        let available_width = if chunks[1].width > 10 {
+            chunks[1].width.saturating_sub(10) as usize
+        } else {
+            1
+        };
 
         let log_text: Vec<Line> = app
             .logs
@@ -440,11 +444,12 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     }
 
                     // First line with container name - fit text by display width
+                    // Be very conservative - stop BEFORE reaching the limit
                     let mut first_line_text = String::new();
                     let mut current_width = 0;
                     for ch in rest.chars() {
                         let ch_width = ch.width().unwrap_or(0);
-                        if current_width + ch_width > remaining_width {
+                        if current_width + ch_width >= remaining_width {
                             break;
                         }
                         first_line_text.push(ch);
@@ -466,7 +471,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
                         for ch in remaining.chars() {
                             let ch_width = ch.width().unwrap_or(0);
-                            if current_width + ch_width > available_width {
+                            if current_width + ch_width >= available_width {
                                 break;
                             }
                             chunk.push(ch);
@@ -493,7 +498,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
                         for ch in remaining.chars() {
                             let ch_width = ch.width().unwrap_or(0);
-                            if current_width + ch_width > available_width {
+                            if current_width + ch_width >= available_width {
                                 break;
                             }
                             chunk.push(ch);
@@ -513,6 +518,51 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                 }
 
                 wrapped_lines
+            })
+            .collect();
+
+        // Final safety check: ensure no line exceeds max width
+        // Use the SAME conservative width as wrapping to ensure consistency
+        let max_line_width = available_width;
+        let log_text: Vec<Line> = log_text
+            .into_iter()
+            .map(|line| {
+                // Calculate the actual display width of the line
+                let line_width: usize = line.spans.iter().map(|span| span.content.width()).sum();
+
+                if line_width >= max_line_width {
+                    // Truncate the line if it's too long
+                    let mut new_spans = Vec::new();
+                    let mut current_width = 0;
+
+                    for span in line.spans {
+                        let span_width = span.content.width();
+                        if current_width + span_width < max_line_width {
+                            new_spans.push(span);
+                            current_width += span_width;
+                        } else {
+                            // Truncate this span
+                            let remaining = max_line_width.saturating_sub(current_width);
+                            if remaining > 0 {
+                                let mut truncated = String::new();
+                                let mut w = 0;
+                                for ch in span.content.chars() {
+                                    let ch_w = ch.width().unwrap_or(0);
+                                    if w + ch_w >= remaining {
+                                        break;
+                                    }
+                                    truncated.push(ch);
+                                    w += ch_w;
+                                }
+                                new_spans.push(Span::styled(truncated, span.style));
+                            }
+                            break;
+                        }
+                    }
+                    Line::from(new_spans)
+                } else {
+                    line
+                }
             })
             .collect();
 

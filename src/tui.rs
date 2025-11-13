@@ -53,6 +53,30 @@ fn get_color(index: usize) -> Color {
     }
 }
 
+fn strip_ansi_codes(s: &str) -> String {
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' {
+            // ESC character - start of ANSI escape sequence
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                // Skip until we find a letter (the command character)
+                while let Some(&next_ch) = chars.peek() {
+                    chars.next();
+                    if next_ch.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
 impl AppState {
     fn new(max_logs: usize) -> Self {
         let mut state = Self {
@@ -386,19 +410,31 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text with EXTREMELY conservative margin
-        // Account for borders (2) + block padding + styling overhead + safety buffer
-        // Being very aggressive here to prevent ANY overflow
-        let max_width = if chunks[1].width > 20 {
-            (chunks[1].width - 20) as usize
+        // Calculate available width for text with conservative margin
+        // Account for borders (2) + styling overhead + safety buffer
+        // Now that we sanitize input, can use a more reasonable margin
+        let max_width = if chunks[1].width > 8 {
+            (chunks[1].width - 8) as usize
         } else {
-            10
+            5
         };
 
         let log_text: Vec<Line> = app
             .logs
             .iter()
             .map(|line| {
+                // Sanitize the line - remove control characters and ANSI codes that mess up display
+                let without_ansi = strip_ansi_codes(line);
+                let sanitized = without_ansi
+                    .chars()
+                    .filter(|c| !c.is_control() || *c == ' ')
+                    .collect::<String>()
+                    .replace('\r', "")
+                    .replace('\n', " ")
+                    .replace('\t', "    ");
+
+                let line = &sanitized;
+
                 // First, build the full line
                 let full_line = if show_container_names {
                     // Parse log line format: "container_name descriptor: log_text"

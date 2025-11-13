@@ -386,18 +386,19 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text with VERY conservative margin
-        // Account for borders (2) + styling overhead + safety buffer
-        let available_width = if chunks[1].width > 10 {
-            chunks[1].width.saturating_sub(10) as usize
+        // Calculate available width for text with EXTREMELY conservative margin
+        // Account for borders (2) + block padding + styling overhead + safety buffer
+        // Being very aggressive here to prevent ANY overflow
+        let max_width = if chunks[1].width > 20 {
+            (chunks[1].width - 20) as usize
         } else {
-            1
+            10
         };
 
         let log_text: Vec<Line> = app
             .logs
             .iter()
-            .flat_map(|line| {
+            .map(|line| {
                 // First, build the full line
                 let full_line = if show_container_names {
                     // Parse log line format: "container_name descriptor: log_text"
@@ -423,107 +424,49 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     }
                 };
 
-                // Manually wrap text to fit within available width using proper unicode width
+                // Simply truncate each line to max_width - no wrapping
                 let (container_name, color, rest) = full_line;
-                let mut wrapped_lines = Vec::new();
-
-                if available_width == 0 {
-                    return wrapped_lines;
-                }
 
                 if let (Some(name), Some(c)) = (container_name, color) {
                     let prefix_width = name.width();
-                    // Leave extra space to ensure no overflow
-                    let remaining_width = available_width.saturating_sub(prefix_width).saturating_sub(1);
+                    let remaining_width = max_width.saturating_sub(prefix_width).saturating_sub(2);
 
-                    if remaining_width == 0 {
-                        wrapped_lines.push(Line::from(vec![
-                            Span::styled(name, Style::default().fg(c).add_modifier(Modifier::BOLD)),
-                        ]));
-                        return wrapped_lines;
-                    }
-
-                    // First line with container name - fit text by display width
-                    // Be very conservative - stop BEFORE reaching the limit
-                    let mut first_line_text = String::new();
+                    // Truncate text to fit within remaining width
+                    let mut truncated = String::new();
                     let mut current_width = 0;
                     for ch in rest.chars() {
                         let ch_width = ch.width().unwrap_or(0);
                         if current_width + ch_width >= remaining_width {
                             break;
                         }
-                        first_line_text.push(ch);
+                        truncated.push(ch);
                         current_width += ch_width;
                     }
-                    let first_line_len = first_line_text.len();
 
-                    wrapped_lines.push(Line::from(vec![
+                    Line::from(vec![
                         Span::styled(name, Style::default().fg(c).add_modifier(Modifier::BOLD)),
-                        Span::raw(first_line_text),
-                    ]));
-
-                    // Additional lines if text continues (no container name, so use full width minus margin)
-                    let mut remaining = &rest[first_line_len..];
-                    while !remaining.is_empty() {
-                        let mut chunk = String::new();
-                        let mut current_width = 0;
-                        let mut chars_consumed = 0;
-
-                        for ch in remaining.chars() {
-                            let ch_width = ch.width().unwrap_or(0);
-                            if current_width + ch_width >= available_width {
-                                break;
-                            }
-                            chunk.push(ch);
-                            current_width += ch_width;
-                            chars_consumed += ch.len_utf8();
-                        }
-
-                        if chunk.is_empty() && !remaining.is_empty() {
-                            // Handle case where single char is too wide - skip it
-                            let first_char = remaining.chars().next().unwrap();
-                            chars_consumed = first_char.len_utf8();
-                        }
-
-                        wrapped_lines.push(Line::from(chunk));
-                        remaining = &remaining[chars_consumed..];
-                    }
+                        Span::raw(truncated),
+                    ])
                 } else {
-                    // No container name, just wrap the text by display width
-                    let mut remaining = rest.as_str();
-                    while !remaining.is_empty() {
-                        let mut chunk = String::new();
-                        let mut current_width = 0;
-                        let mut chars_consumed = 0;
-
-                        for ch in remaining.chars() {
-                            let ch_width = ch.width().unwrap_or(0);
-                            if current_width + ch_width >= available_width {
-                                break;
-                            }
-                            chunk.push(ch);
-                            current_width += ch_width;
-                            chars_consumed += ch.len_utf8();
+                    // No container name, just truncate the text
+                    let mut truncated = String::new();
+                    let mut current_width = 0;
+                    for ch in rest.chars() {
+                        let ch_width = ch.width().unwrap_or(0);
+                        if current_width + ch_width >= max_width {
+                            break;
                         }
-
-                        if chunk.is_empty() && !remaining.is_empty() {
-                            // Handle case where single char is too wide - skip it
-                            let first_char = remaining.chars().next().unwrap();
-                            chars_consumed = first_char.len_utf8();
-                        }
-
-                        wrapped_lines.push(Line::from(chunk));
-                        remaining = &remaining[chars_consumed..];
+                        truncated.push(ch);
+                        current_width += ch_width;
                     }
+                    Line::from(truncated)
                 }
-
-                wrapped_lines
             })
             .collect();
 
         // Final safety check: ensure no line exceeds max width
-        // Use the SAME conservative width as wrapping to ensure consistency
-        let max_line_width = available_width;
+        // Use the SAME conservative width as truncation to ensure consistency
+        let max_line_width = max_width;
         let log_text: Vec<Line> = log_text
             .into_iter()
             .map(|line| {

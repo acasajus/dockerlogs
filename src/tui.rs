@@ -386,8 +386,9 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text (right pane width minus borders and safety margin)
-        let available_width = chunks[1].width.saturating_sub(3) as usize; // Extra margin for safety
+        // Calculate available width for text (right pane width minus borders and large safety margin)
+        // Need extra margin to account for styling overhead and ensure no overflow
+        let available_width = chunks[1].width.saturating_sub(5) as usize;
 
         let log_text: Vec<Line> = app
             .logs
@@ -428,7 +429,8 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
                 if let (Some(name), Some(c)) = (container_name, color) {
                     let prefix_width = name.width();
-                    let remaining_width = available_width.saturating_sub(prefix_width);
+                    // Leave extra space to ensure no overflow
+                    let remaining_width = available_width.saturating_sub(prefix_width).saturating_sub(1);
 
                     if remaining_width == 0 {
                         wrapped_lines.push(Line::from(vec![
@@ -455,7 +457,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                         Span::raw(first_line_text),
                     ]));
 
-                    // Additional lines if text continues
+                    // Additional lines if text continues (no container name, so use full width minus margin)
                     let mut remaining = &rest[first_line_len..];
                     while !remaining.is_empty() {
                         let mut chunk = String::new();

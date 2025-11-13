@@ -12,11 +12,11 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
     Frame, Terminal,
 };
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 #[derive(Debug, Clone)]
 struct ContainerInfo {
@@ -62,7 +62,7 @@ fn strip_ansi_codes(s: &str) -> String {
             // ESC character - start of ANSI escape sequence
             if chars.peek() == Some(&'[') {
                 chars.next(); // consume '['
-                // Skip until we find a letter (the command character)
+                              // Skip until we find a letter (the command character)
                 while let Some(&next_ch) = chars.peek() {
                     chars.next();
                     if next_ch.is_ascii_alphabetic() {
@@ -410,11 +410,10 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text with conservative margin
-        // Account for borders (2) + styling overhead + safety buffer
-        // Now that we sanitize input, can use a more reasonable margin
-        let max_width = if chunks[1].width > 8 {
-            (chunks[1].width - 8) as usize
+        // Calculate available width for text - minimal margin now that we sanitize
+        // Account for borders (2) + small safety buffer (2)
+        let max_width = if chunks[1].width > 4 {
+            (chunks[1].width - 4) as usize
         } else {
             5
         };
@@ -422,7 +421,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let log_text: Vec<Line> = app
             .logs
             .iter()
-            .map(|line| {
+            .flat_map(|line| {
                 // Sanitize the line - remove control characters and ANSI codes that mess up display
                 let without_ansi = strip_ansi_codes(line);
                 let sanitized = without_ansi
@@ -443,7 +442,11 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                         let rest = &line[first_space_idx..];
 
                         if let Some(color) = app.get_container_color(container_name) {
-                            (Some(container_name.to_string()), Some(color), rest.to_string())
+                            (
+                                Some(container_name.to_string()),
+                                Some(color),
+                                rest.to_string(),
+                            )
                         } else {
                             (None, None, line.clone())
                         }
@@ -460,43 +463,104 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     }
                 };
 
-                // Simply truncate each line to max_width - no wrapping
+                // Wrap text to fit within available width - can wrap multiple times
                 let (container_name, color, rest) = full_line;
+                let mut wrapped_lines = Vec::new();
+
+                if max_width == 0 {
+                    return wrapped_lines;
+                }
 
                 if let (Some(name), Some(c)) = (container_name, color) {
                     let prefix_width = name.width();
-                    let remaining_width = max_width.saturating_sub(prefix_width).saturating_sub(2);
+                    let remaining_width = max_width.saturating_sub(prefix_width).saturating_sub(1);
 
-                    // Truncate text to fit within remaining width
-                    let mut truncated = String::new();
+                    if remaining_width == 0 {
+                        wrapped_lines.push(Line::from(vec![Span::styled(
+                            name,
+                            Style::default().fg(c).add_modifier(Modifier::BOLD),
+                        )]));
+                        return wrapped_lines;
+                    }
+
+                    // First line with container name
+                    let mut first_line_text = String::new();
                     let mut current_width = 0;
                     for ch in rest.chars() {
                         let ch_width = ch.width().unwrap_or(0);
                         if current_width + ch_width >= remaining_width {
                             break;
                         }
-                        truncated.push(ch);
+                        first_line_text.push(ch);
                         current_width += ch_width;
                     }
+                    let first_line_len = first_line_text.len();
 
-                    Line::from(vec![
+                    wrapped_lines.push(Line::from(vec![
                         Span::styled(name, Style::default().fg(c).add_modifier(Modifier::BOLD)),
-                        Span::raw(truncated),
-                    ])
-                } else {
-                    // No container name, just truncate the text
-                    let mut truncated = String::new();
-                    let mut current_width = 0;
-                    for ch in rest.chars() {
-                        let ch_width = ch.width().unwrap_or(0);
-                        if current_width + ch_width >= max_width {
-                            break;
+                        Span::raw(first_line_text),
+                    ]));
+
+                    // Additional wrapped lines
+                    let mut remaining = &rest[first_line_len..];
+                    while !remaining.is_empty() {
+                        let mut chunk = String::new();
+                        let mut current_width = 0;
+                        let mut chars_consumed = 0;
+
+                        for ch in remaining.chars() {
+                            let ch_width = ch.width().unwrap_or(0);
+                            if current_width + ch_width >= max_width {
+                                break;
+                            }
+                            chunk.push(ch);
+                            current_width += ch_width;
+                            chars_consumed += ch.len_utf8();
                         }
-                        truncated.push(ch);
-                        current_width += ch_width;
+
+                        if chunk.is_empty() && !remaining.is_empty() {
+                            // Skip character that's too wide
+                            let first_char = remaining.chars().next().unwrap();
+                            chars_consumed = first_char.len_utf8();
+                        }
+
+                        if !chunk.is_empty() {
+                            wrapped_lines.push(Line::from(chunk));
+                        }
+                        remaining = &remaining[chars_consumed..];
                     }
-                    Line::from(truncated)
+                } else {
+                    // No container name, wrap the text
+                    let mut remaining = rest.as_str();
+                    while !remaining.is_empty() {
+                        let mut chunk = String::new();
+                        let mut current_width = 0;
+                        let mut chars_consumed = 0;
+
+                        for ch in remaining.chars() {
+                            let ch_width = ch.width().unwrap_or(0);
+                            if current_width + ch_width >= max_width {
+                                break;
+                            }
+                            chunk.push(ch);
+                            current_width += ch_width;
+                            chars_consumed += ch.len_utf8();
+                        }
+
+                        if chunk.is_empty() && !remaining.is_empty() {
+                            // Skip character that's too wide
+                            let first_char = remaining.chars().next().unwrap();
+                            chars_consumed = first_char.len_utf8();
+                        }
+
+                        if !chunk.is_empty() {
+                            wrapped_lines.push(Line::from(chunk));
+                        }
+                        remaining = &remaining[chars_consumed..];
+                    }
                 }
+
+                wrapped_lines
             })
             .collect();
 

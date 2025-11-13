@@ -410,12 +410,12 @@ fn ui(f: &mut Frame, app: &mut AppState) {
         let selected_count = app.selected_count();
         let show_container_names = selected_count != 1;
 
-        // Calculate available width for text - minimal margin now that we sanitize
-        // Account for borders (2) + small safety buffer (2)
-        let max_width = if chunks[1].width > 4 {
-            (chunks[1].width - 4) as usize
+        // Calculate available width for text - only account for borders
+        // Now that we sanitize input, we can use the full width minus just the borders
+        let max_width = if chunks[1].width > 2 {
+            (chunks[1].width - 2) as usize
         } else {
-            5
+            1
         };
 
         let log_text: Vec<Line> = app

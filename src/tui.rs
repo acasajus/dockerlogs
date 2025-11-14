@@ -488,7 +488,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                     let mut current_width = 0;
                     for ch in rest.chars() {
                         let ch_width = ch.width().unwrap_or(0);
-                        if current_width + ch_width >= remaining_width {
+                        if current_width + ch_width > remaining_width {
                             break;
                         }
                         first_line_text.push(ch);
@@ -510,7 +510,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
                         for ch in remaining.chars() {
                             let ch_width = ch.width().unwrap_or(0);
-                            if current_width + ch_width >= max_width {
+                            if current_width + ch_width > max_width {
                                 break;
                             }
                             chunk.push(ch);
@@ -539,7 +539,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
 
                         for ch in remaining.chars() {
                             let ch_width = ch.width().unwrap_or(0);
-                            if current_width + ch_width >= max_width {
+                            if current_width + ch_width > max_width {
                                 break;
                             }
                             chunk.push(ch);
@@ -573,14 +573,14 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                 // Calculate the actual display width of the line
                 let line_width: usize = line.spans.iter().map(|span| span.content.width()).sum();
 
-                if line_width >= max_line_width {
+                if line_width > max_line_width {
                     // Truncate the line if it's too long
                     let mut new_spans = Vec::new();
                     let mut current_width = 0;
 
                     for span in line.spans {
                         let span_width = span.content.width();
-                        if current_width + span_width < max_line_width {
+                        if current_width + span_width <= max_line_width {
                             new_spans.push(span);
                             current_width += span_width;
                         } else {
@@ -591,7 +591,7 @@ fn ui(f: &mut Frame, app: &mut AppState) {
                                 let mut w = 0;
                                 for ch in span.content.chars() {
                                     let ch_w = ch.width().unwrap_or(0);
-                                    if w + ch_w >= remaining {
+                                    if w + ch_w > remaining {
                                         break;
                                     }
                                     truncated.push(ch);
